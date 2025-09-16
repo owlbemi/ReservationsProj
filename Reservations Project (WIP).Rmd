@@ -1,12 +1,192 @@
 ---
 title: "Reservations Project (WIP)"
 author: "Jake Lee"
-date: "2025-09-16"
-output: html_document
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output: 
+  html_document:
+    theme: united
 runtime: shiny
 ---
 
+To deploy your codes use `rsconnect::deployApp('/cloud/project/Reservations Project (WIP).Rmd')`
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(readxl)
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(shiny)
+library(cluster)
+library(plotly)
+```
+
+# Initial Data Setup
+
+```{r}
+total_2022 <- read_excel("Total Number of Bookings (2022).xlsx")
+
+head(total_2022)
+
+total_2023 <- read_excel("Total Number of Bookings (2023).xlsx")
+
+head(total_2023)
+
+total_2024 <- read_excel("Total Number of Bookings (2024).xlsx")
+
+head(total_2024)
+```
+
+# Data Cleaning
+```{r}
+# Check if there are any NA values
+total_2022[is.na(total_2022)] <- 0
+
+# Drop total row and transpose
+total_2022_clean <- total_2022 %>%
+  slice(-2)
+
+total_2022_clean <- total_2022_clean %>%
+  select(-Building) %>%
+  pivot_longer(cols = everything(),
+               names_to = "Month",
+               values_to = "Value")
+
+total_2022_clean <- total_2022_clean %>%
+  slice(-13)
+
+total_2022_clean$Value <- as.numeric(total_2022_clean$Value)
+```
+
+```{r}
+# Check if there are any NA values
+total_2023[is.na(total_2023)] <- 0
+
+# Drop total row and transpose
+total_2023_clean <- total_2023 %>%
+  slice(-2)
+
+total_2023_clean <- total_2023_clean %>%
+  select(-Building) %>%
+  pivot_longer(cols = everything(),
+               names_to = "Month",
+               values_to = "Value")
+
+total_2023_clean <- total_2023_clean %>%
+  slice(-13)
+
+total_2023_clean$Value <- as.numeric(total_2023_clean$Value)
+
+
+```
+
+```{r}
+# Check if there are any NA values
+total_2024[is.na(total_2024)] <- 0
+
+# Drop total row and transpose
+total_2024_clean <- total_2024 %>%
+  slice(-2)
+
+total_2024_clean <- total_2024_clean %>%
+  select(-Building) %>%
+  pivot_longer(cols = everything(),
+               names_to = "Month",
+               values_to = "Value")
+
+total_2024_clean <- total_2024_clean %>%
+  slice(-13)
+
+total_2024_clean$Value <- as.numeric(total_2024_clean$Value)
+```
+
+```{r}
+total_2022_clean$Month <- factor(total_2022_clean$Month, 
+                                  levels = c("January", "February", "March", "April", "May", "June", 
+                                             "July", "August", "September", "October", "November", "December"),
+                                  ordered = TRUE)
+
+total_2023_clean$Month <- factor(total_2023_clean$Month, 
+                                  levels = c("January", "February", "March", "April", "May", "June", 
+                                             "July", "August", "September", "October", "November", "December"),
+                                  ordered = TRUE)
+
+total_2024_clean$Month <- factor(total_2024_clean$Month, 
+                                  levels = c("January", "February", "March", "April", "May", "June", 
+                                             "July", "August", "September", "October", "November", "December"),
+                                  ordered = TRUE)
+```
+
+# EDA (Exploratory Data Analysis)
+
+```{r}
+booking_data_list <- list(
+  "2022" = total_2022_clean,
+  "2023" = total_2023_clean,
+  "2024" = total_2024_clean
+)
+```
+
+## Shiny UI setup
+```{r}
+ui <- fluidPage(
+  titlePanel("Interactive Booking Trends by Year"),
+  sidebarLayout(
+    sidebarPanel(
+      selectInput("selected_year", "Choose a year:", 
+                  choices = c("2022", "2023", "2024"),
+                  selected = "2024")
+    ),
+    mainPanel(
+      plotlyOutput("yearly_plot")  # Use plotlyOutput instead of plotOutput
+    )
+  )
+)
+
+server <- function(input, output) {
+  output$yearly_plot <- renderPlotly({
+    selected_data <- booking_data_list[[input$selected_year]]
+    
+    # Ensure Month is ordered correctly
+    selected_data$Month <- factor(selected_data$Month, 
+                                  levels = c("January", "February", "March", "April", "May", "June", 
+                                             "July", "August", "September", "October", "November", "December"),
+                                  ordered = TRUE)
+    
+    p <- ggplot(selected_data, aes(x = Month, y = Value, group = 1)) +
+      geom_point(size = 3, color = "green") +
+      geom_line(color = "orange", linewidth = 1) +
+      theme_minimal() +
+      scale_y_continuous() +
+      scale_x_discrete(drop = FALSE) +  # Ensure all months are shown on x-axis
+      theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) +  # Rotate x labels to avoid overlap
+      labs(
+        title = paste("Student Union Total Monthly Bookings", input$selected_year),
+        x = "Month",
+        y = "Number of Bookings"
+      )
+    
+    ggplotly(p)  # Convert the ggplot to a plotly object
+  })
+  
+  observeEvent(event_data("plotly_click"), {
+    click_data <- event_data("plotly_click")
+    
+    if (!is.null(click_data)) {
+      # You can use the click data here, e.g., display the clicked point's information
+      showModal(modalDialog(
+        title = "Clicked Data",
+        paste("You clicked on", click_data$pointNumber + 1, 
+              "at", click_data$x, "month with bookings:", click_data$y)
+      ))
+    }
+  })
+}
+
+
+shinyApp(ui = ui, server = server)
 ```
 
